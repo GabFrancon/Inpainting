@@ -14,6 +14,14 @@ class Inpainter:
         self.data = None
         self.patch_size = 9
 
+        self.safetyCount = 0
+        self.safetyMax = None
+
+        # C'est juste une sécurité pour que l'algorithme se termine:
+        # on calcule le nombre de pixels de l'image, et si on fait plus
+        # de boucles qu'il n'y a de pixels dans l'image c'est qu'il y a
+        # un problème. Cf isFinished
+
     def inpaint(self):
         self.validate_inputs()
         self.initialize_attributes()
@@ -41,11 +49,11 @@ class Inpainter:
         height, width = self.image.shape[:2]
         self.confidence = (1 - self.mask).astype(float)
         self.data = np.zeros([height, width])
+        self.safetyMax = height * width
 
     def identify_fill_front(self):
         laplacian = ndimage.laplace(self.mask)
         self.fill_front = (laplacian > 0).astype('uint8')
-        print(self.fill_front)
 
     def compute_priorities(self):
         self.update_confidence()
@@ -66,6 +74,7 @@ class Inpainter:
     def update_confidence(self):
         print('update confidence\n')
 
+
     def update_data(self):
         print('update data\n')
 
@@ -73,5 +82,12 @@ class Inpainter:
         print('test if process finished\n')
         return True
 
+    def is_finished(self): 
+        print(self.mask)
+        self.safetyCount += 1 #On pourrait faire += 9 je crois mais dans le doute ... c'est quand même une sécurité 
+        if True or (self.safetyCount < self.safetyMax): #Bon il faut trouver une condition
+            return True
+        else: 
+            return False
 
 
