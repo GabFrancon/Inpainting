@@ -1,4 +1,6 @@
 import argparse as ap
+import numpy as np
+
 import imageio as imo
 import matplotlib.pyplot as plt
 from Inpainter import Inpainter
@@ -15,9 +17,11 @@ def main():
     mask = imo.imread(args.mask)
     output_filepath = args.output
 
+    # to convert the mask in gray scale
+    mask = np.dot(mask[..., :3], [0.2989, 0.5870, 0.1140])
+
     output_image = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
-
     show_image(output_image)
 
 
@@ -48,7 +52,7 @@ def parse_arguments():
 
 
 def show_image(image):
-    plt.imshow(image)
+    plt.imshow(image, cmap='gray')
     plt.show()
 
 
