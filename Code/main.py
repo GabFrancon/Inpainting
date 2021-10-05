@@ -1,6 +1,6 @@
-import os
 import argparse as ap
 import imageio as imo
+import matplotlib.pyplot as plt
 from Inpainter import Inpainter
 
 
@@ -10,15 +10,15 @@ def main():
         python Code/main.py -i Data/Image.png -m Data/Mask.png -o Data/Output.png """
 
     args = parse_arguments()
+
     image = imo.imread(args.input)
     mask = imo.imread(args.mask)
     output_filepath = args.output
 
     output_image = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
-    os.system('imagej '+output_filepath+' &')
 
-    print('inpainting process finished')
+    show_image(output_image)
 
 
 def parse_arguments():
@@ -45,6 +45,11 @@ def parse_arguments():
     )
 
     return parser.parse_args()
+
+
+def show_image(image):
+    plt.imshow(image)
+    plt.show()
 
 
 if __name__ == "__main__":
