@@ -14,13 +14,16 @@ class Inpainter:
         self.data = None
         self.patch_size = 9
 
+        # Sécurité pour que l'algorithme se termine:
+        # on s'assure qu'on ne fait pas plus de boucles qu'il n'y a de pixels dans l'image
         self.safetyCount = 0
         self.safetyMax = None
 
-        # C'est juste une sécurité pour que l'algorithme se termine:
-        # on calcule le nombre de pixels de l'image, et si on fait plus
-        # de boucles qu'il n'y a de pixels dans l'image c'est qu'il y a
-        # un problème. Cf isFinished
+        #On va travailler sur des copies pour ne pas détruire les images de base 
+        self.working_mask = None
+        self.working_image = None
+
+
 
     def inpaint(self):
         self.validate_inputs()
@@ -50,9 +53,11 @@ class Inpainter:
         self.confidence = (1 - self.mask).astype(float)
         self.data = np.zeros([height, width])
         self.safetyMax = height * width
+        self.working_image = np.copy(self.image)
+        self.working_mask = np.copy(self.mask)
 
     def identify_fill_front(self):
-        laplacian = ndimage.laplace(self.mask)
+        laplacian = ndimage.laplace(self.working_mask)
         self.fill_front = (laplacian > 0).astype('uint8')
 
     def compute_priorities(self):
@@ -78,16 +83,17 @@ class Inpainter:
     def update_data(self):
         print('update data\n')
 
-    def is_finished(self):
-        print('test if process finished\n')
-        return True
-
     def is_finished(self): 
-        print(self.mask)
-        self.safetyCount += 1 #On pourrait faire += 9 je crois mais dans le doute ... c'est quand même une sécurité 
-        if True or (self.safetyCount < self.safetyMax): #Bon il faut trouver une condition
+        print(self.working_mask)
+        whiteNumber = self.working_mask.sum()
+        self.safetyCount += 1 
+        #La condition ==0 n'est peut-être pas idéale 
+        #En fonction de quand on appelle la fonction, il faudrait peut-être plutôt
+        #quelque chose du genre <(nombre de pixels par patch)
+        if whiteNumber == 0 or (self.safetyCount < self.safetyMax): 
             return True
         else: 
             return False
+        return True #Laisser tant qu'on n'a pas codé le reste 
 
 
