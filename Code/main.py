@@ -40,7 +40,7 @@ def parse_arguments():
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Mask2.png'
+        default='../Data/Mask.png'
     )
 
     parser.add_argument(
