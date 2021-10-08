@@ -9,7 +9,9 @@ from Inpainter import Inpainter
 def main():
     """ Usage in inpainting directory :
 
-        python Code/main.py -i Data/Image.png -m Data/Mask.png -o Data/Output.png """
+        python Code/main.py -i Data/Image.png -m Data/Mask.png -o Data/Output.png
+
+         To make a GIF from result, go to https://ezgif.com/maker and use images in '/Data/Temp' folder """
 
     args = parse_arguments()
 
@@ -38,7 +40,7 @@ def parse_arguments():
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Mask.png'
+        default='../Data/Mask2.png'
     )
 
     parser.add_argument(
