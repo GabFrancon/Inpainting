@@ -20,7 +20,7 @@ def main():
     output_filepath = args.output
 
     # convert image in rgb and mask in gray scale
-    image = rgba2rgb(image)
+    # image = rgba2rgb(image)
     mask = rgba2gray(mask)
 
     output_image = Inpainter(image, mask).inpaint()
@@ -34,21 +34,21 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Square.png'
+        default='../Data/Baseball.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Square_mask.png'
+        default='../Data/Baseball_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Square_output.png'
+        default='../Data/Baseball_output.jpg'
     )
 
     return parser.parse_args()
