@@ -14,7 +14,7 @@ class Inpainter:
         self.priority = None
         self.confidence = None
         self.data = None
-        self.iteration = 0
+        self.iteration = 1
         self.patch_size = 9
         self.start_time = time.perf_counter()
 
@@ -29,13 +29,15 @@ class Inpainter:
         done = False
 
         while not done:
+            print(str(self.iteration)+' :')
             self.identify_fill_front()
             self.compute_priorities()
 
             target_pixel, target_patch, target_data, local_mask = self.get_target()
             best_source = self.get_source(target_patch, target_data, local_mask)
 
-            self.update_image(target_patch, target_data+best_source, target_pixel)
+            local_confidence = self.change_local_conf(target_pixel, target_patch, local_mask)
+            self.update_image(target_patch, target_data+best_source, local_confidence)
             done = self.is_finished()
 
         print('total process time : ' + str(time.perf_counter() - self.start_time) + ' seconds')
@@ -51,11 +53,12 @@ class Inpainter:
         self.data = np.zeros([height, width])
         self.safetyMax = height * width
         self.mask_input()
-        self.save_temp_image()
+        self.save_temp_image(True)
 
     def identify_fill_front(self):
         laplacian = ndimage.laplace(self.mask)
-        self.fill_front = (laplacian > 0).astype('uint8')
+        self.fill_front = (laplacian > 128).astype('uint8')
+        # self.show_image(self.fill_front, 'fill front')
 
     def compute_priorities(self):
         self.update_confidence()
@@ -74,6 +77,7 @@ class Inpainter:
             new_confidence[pixel[0], pixel[1]] = val
 
         self.confidence = new_confidence
+        # self.show_image(self.confidence, 'confidence')
 
     def update_data(self):
         self.data = 1
@@ -84,10 +88,11 @@ class Inpainter:
         max_pixel = None
 
         for pixel in edge:
-            priority = self.priority[pixel[0]][pixel[1]]
-            if priority > max_priority:
-                max_priority = priority
-                max_pixel = pixel
+            if self.is_patchable(pixel):
+                priority = self.priority[pixel[0]][pixel[1]]
+                if priority > max_priority:
+                    max_priority = priority
+                    max_pixel = pixel
 
         return max_pixel
 
@@ -108,15 +113,17 @@ class Inpainter:
         local_mask = self.get_local_mask(indices)
         target = self.mask_data(data, local_mask)
         # self.show_patch(self.image, indices, 'target patch')
-        # self.show_image(target, 'target')
+        print('target pixel : '+str(pixel))
         return pixel, indices, target, local_mask
 
     def get_local_mask(self, indices):
-        return self.patch_data(indices, self.mask)
+        local_mask = self.patch_data(indices, self.mask)
+        return local_mask
 
     def get_source(self, target_patch, masked_target, local_mask):
         best_pixel = None
         best_match = None
+        best_location = None
         distance = np.inf
         source_region = np.argwhere(self.fix_mask == 0)
 
@@ -133,34 +140,51 @@ class Inpainter:
                     if new_distance < distance:
                         distance = new_distance
                         best_pixel = pixel
+                        best_location = source_patch
                         best_match = source_data
 
         best_source = self.mask_data(best_match, 255 - local_mask)
         print('source pixel : '+str(best_pixel))
+        print('distance : ' + str(distance))
+
         # self.show_patch(self.image, best_location, 'source patch')
-        # self.show_image(best_source, 'source')
+        # self.show_image(best_source, 'data')
+        # self.show_image(masked_target, 'target data')
+
         return best_source
 
-    def update_image(self, location, data, source_pixel):
+    def update_image(self, location, new_data, new_confidence):
         [minX, maxX], [minY, maxY] = location
 
-        # self.show_image(data, 'new data')
-        self.image[minX:maxX, minY:maxY] = data
+        # self.show_image(new_data, 'new data')
+        self.confidence[minX:maxX, minY:maxY] = new_confidence
+        self.image[minX:maxX, minY:maxY] = new_data
         self.mask[minX:maxX, minY:maxY] = 0
-        self.confidence[minX:maxX, minY:maxY] = self.confidence[source_pixel[0]][source_pixel[1]]
 
         self.iteration += 1
         self.save_temp_image()
         # self.show_image(self.image, 'updated image')
 
+    def change_local_conf(self, pixel, patch, mask):
+        data = self.patch_data(patch, self.confidence)
+        masked_data = self.mask_data(data, mask)
+        new = np.ones((self.patch_size-1, self.patch_size-1))*self.confidence[pixel[0], pixel[1]]
+        masked_new = self.mask_data(new, 255 - mask)
+        return masked_data + masked_new
+
     def is_finished(self):
         white_number = self.mask.sum()
         self.safetyCount += 1
         if white_number == 0 or (self.safetyCount > self.safetyMax):
+            self.save_temp_image(True)
             return True
         else:
-            print(str(self.iteration)+' - remaining : '+str(white_number))
-            print('process time : ' + str(time.perf_counter() - self.start_time) + ' seconds'+'\n')
+            prediction = round(white_number/(255*self.patch_size*self.patch_size)*5.4)
+            print('remains approximately '
+                  + str(prediction)
+                  + ' iterations')
+
+            print('process time : ' + str(round(time.perf_counter() - self.start_time)) + ' seconds'+'\n')
             return False
 
     def mask_input(self):
@@ -177,8 +201,8 @@ class Inpainter:
         for p in front_pos:
             self.image[p[0], p[1]] = (255, 0, 0)'''
 
-    def save_temp_image(self):
-        if self.iteration % 5 == 0:
+    def save_temp_image(self, force=False):
+        if self.iteration % 5 == 0 or force:
             imo.imwrite('../Data/Temp/'+str(self.iteration)+'.png', self.image)
 
     def patch_indices(self, pixel):
@@ -211,7 +235,7 @@ class Inpainter:
         euclidian_dist = np.sqrt((minXT - minXS)**2 + (minYT - minYS)**2)
         squared_dist = ((target_data-source_data)**2).sum()
 
-        return squared_dist + euclidian_dist
+        return squared_dist/5 + euclidian_dist
 
     @staticmethod
     def mask_data(source, mask, threshold=128):
