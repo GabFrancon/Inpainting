@@ -34,21 +34,21 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Island.jpg'
+        default='../Data/Baseball.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Island_mask.jpg'
+        default='../Data/Baseball_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Island_output.jpg'
+        default='../Data/Baseball_output_2.jpg'
     )
 
     return parser.parse_args()

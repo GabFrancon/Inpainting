@@ -179,7 +179,7 @@ class Inpainter:
             self.save_temp_image(True)
             return True
         else:
-            prediction = round(white_number/(255*self.patch_size*self.patch_size)*5.4)
+            prediction = round(white_number/(255*self.patch_size*self.patch_size)*5.35)
             print('remains approximately '
                   + str(prediction)
                   + ' iterations')
@@ -235,7 +235,7 @@ class Inpainter:
         euclidian_dist = np.sqrt((minXT - minXS)**2 + (minYT - minYS)**2)
         squared_dist = ((target_data-source_data)**2).sum()
 
-        return squared_dist/5 + euclidian_dist
+        return squared_dist/7 + euclidian_dist
 
     @staticmethod
     def mask_data(source, mask, threshold=128):
