@@ -1,5 +1,6 @@
 import argparse as ap
 import numpy as np
+import os
 
 import imageio as imo
 import matplotlib.pyplot as plt
@@ -13,18 +14,23 @@ def main():
 
          To make a GIF from result, go to https://ezgif.com/maker and use images in '/Data/Temp' folder """
 
+    clear_temp_directory()
     args = parse_arguments()
 
     image = imo.imread(args.input)
     mask = imo.imread(args.mask)
     output_filepath = args.output
 
-    # convert image in rgb and mask in gray scale
-    # image = rgba2rgb(image)
-    mask = rgba2gray(mask)
+    # prepare image and mask
+    mask = format_mask(mask)
+    image[mask == 1] = 255
+
+    # show_image(image, 'starter image')
+    # show_image(mask, 'starter mask')
 
     output_image = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
+    create_gif()
     show_image(output_image, 'result')
 
 
@@ -34,55 +40,49 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Baseball.jpg'
+        default='../Data/Island.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Baseball_mask.jpg'
+        default='../Data/Island_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Baseball_output_2.jpg'
+        default='../Data/Island_output_5.jpg'
     )
 
     return parser.parse_args()
 
 
-def rgba2rgb(rgba, background=(255, 255, 255)):
-    row, col, ch = rgba.shape
+def format_mask(mask):
 
-    if ch == 3:
-        return rgba
-
-    assert ch == 4, 'RGBA image has 4 channels.'
-
-    rgb = np.zeros((row, col, 3), dtype='float32')
-    r, g, b, a = rgba[:, :, 0], rgba[:, :, 1], rgba[:, :, 2], rgba[:, :, 3]
-
-    a = np.asarray(a, dtype='float32') / 255.0
-
-    R, G, B = background
-
-    rgb[:, :, 0] = r * a + (1.0 - a) * R
-    rgb[:, :, 1] = g * a + (1.0 - a) * G
-    rgb[:, :, 2] = b * a + (1.0 - a) * B
-
-    return np.asarray(rgb, dtype='uint8')
+    gray = np.dot(mask[..., :3], [0.299, 0.587, 0.114])
+    result = np.asarray(gray, dtype='uint8')
+    return (result > 128).astype('float')
 
 
-def rgba2gray(rgba):
-    gray = np.dot(rgba[..., :3], [0.299, 0.587, 0.114])
-    return np.asarray(gray, dtype='uint8')
+def clear_temp_directory():
+    directory = '../Data/Temp'
+    for file in os.listdir(directory):
+        os.remove(os.path.join(directory, file))
+
+
+def create_gif():
+    directory = '../Data/Temp'
+    with imo.get_writer('../Data/Process/process.gif', mode='I') as writer:
+        for file in os.listdir(directory):
+            image = imo.imread(os.path.join(directory, file))
+            writer.append_data(image)
 
 
 def show_image(image, title):
-    plt.imshow(image)
+    plt.imshow(image, cmap='gray')
     plt.title(title)
     plt.show()
 

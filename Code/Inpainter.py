@@ -7,9 +7,10 @@ from scipy import ndimage
 
 class Inpainter:
     def __init__(self, image, mask):
-        self.mask = np.copy(mask.astype('uint8'))
+        self.mask = np.copy(mask)
         self.fix_mask = np.copy(self.mask)
-        self.image = np.copy(image.astype('uint8'))
+        self.image = np.copy(image)
+        self.source_region = None
         self.fill_front = None
         self.priority = None
         self.confidence = None
@@ -18,8 +19,8 @@ class Inpainter:
         self.patch_size = 9
         self.start_time = time.perf_counter()
 
-        # Sécurité pour que l'algorithme se termine :
-        # on s'assure qu'on ne fait pas plus de boucles qu'il n'y a de pixels dans l'image
+        # Safety for the program to finish :
+        # We make sure we don't make more loops than the total of number of pixels in the image
         self.safetyCount = 0
         self.safetyMax = None
 
@@ -29,18 +30,19 @@ class Inpainter:
         done = False
 
         while not done:
-            print(str(self.iteration)+' :')
+            print(str(self.iteration) + ' :')
             self.identify_fill_front()
             self.compute_priorities()
 
-            target_pixel, target_patch, target_data, local_mask = self.get_target()
-            best_source = self.get_source(target_patch, target_data, local_mask)
+            target_pixel, target_location, target_data = self.get_target()
+            local_mask = self.get_local_mask(target_location)
+            source_data = self.get_source(target_location, target_data, local_mask)
 
-            local_confidence = self.change_local_conf(target_pixel, target_patch, local_mask)
-            self.update_image(target_patch, target_data+best_source, local_confidence)
+            self.update_image(target_location, target_data, source_data, local_mask)
+            self.change_local_conf(target_pixel, target_location, local_mask)
+
             done = self.is_finished()
 
-        print('total process time : ' + str(time.perf_counter() - self.start_time) + ' seconds')
         return self.image
 
     def validate_inputs(self):
@@ -49,15 +51,15 @@ class Inpainter:
 
     def initialize_attributes(self):
         height, width = self.image.shape[:2]
-        self.confidence = ((255 - self.mask)/255)
+        self.source_region = self.delimit_source_region()
+        self.confidence = (1 - self.mask)
         self.data = np.zeros([height, width])
         self.safetyMax = height * width
-        self.mask_input()
-        self.save_temp_image(True)
+        self.save_temp_image()
 
     def identify_fill_front(self):
         laplacian = ndimage.laplace(self.mask)
-        self.fill_front = (laplacian > 128).astype('uint8')
+        self.fill_front = (laplacian > 0).astype('uint8')
         # self.show_image(self.fill_front, 'fill front')
 
     def compute_priorities(self):
@@ -73,11 +75,10 @@ class Inpainter:
             indices = self.patch_indices(pixel)
             confidence_values = self.patch_data(indices, self.confidence)
 
-            val = sum(sum(confidence_values)) / (self.patch_size*self.patch_size)
+            val = sum(sum(confidence_values)) / (self.patch_size * self.patch_size)
             new_confidence[pixel[0], pixel[1]] = val
 
         self.confidence = new_confidence
-        # self.show_image(self.confidence, 'confidence')
 
     def update_data(self):
         self.data = 1
@@ -99,115 +100,121 @@ class Inpainter:
     def is_patchable(self, pixel):
         half_size = (self.patch_size - 1) // 2
         height, width = self.image.shape[:2]
-        return pixel[0] in [i for i in range(half_size, height-half_size)]\
-            and pixel[1] in [j for j in range(half_size, width-half_size)]
-
-    def is_fully_in_mask(self, indices):
-        data = self.patch_data(indices, self.fix_mask)
-        return data.sum() == 0
+        return (half_size < pixel[0] < height - half_size) and (half_size < pixel[1] < width - half_size)
 
     def get_target(self):
         pixel = self.find_highest_priority()
         indices = self.patch_indices(pixel)
         data = self.patch_data(indices, self.image)
-        local_mask = self.get_local_mask(indices)
-        target = self.mask_data(data, local_mask)
+
+        print('target pixel : ' + str(pixel))
         # self.show_patch(self.image, indices, 'target patch')
-        print('target pixel : '+str(pixel))
-        return pixel, indices, target, local_mask
+        return pixel, indices, data
 
     def get_local_mask(self, indices):
-        local_mask = self.patch_data(indices, self.mask)
-        return local_mask
+        return self.patch_data(indices, self.mask)
 
-    def get_source(self, target_patch, masked_target, local_mask):
+    def get_source(self, target_location, target_data, local_mask):
         best_pixel = None
         best_match = None
         best_location = None
         distance = np.inf
-        source_region = np.argwhere(self.fix_mask == 0)
 
-        for pixel in source_region:
+        for pixel in self.source_region:
 
-            if self.is_patchable(pixel):
-                source_patch = self.patch_indices(pixel)
+            source_patch = self.patch_indices(pixel)
+            euclidian_dist = np.sqrt((target_location[0][0] - source_patch[0][0]) ** 2
+                                     + (target_location[1][0] - source_patch[1][0]) ** 2)
+            if euclidian_dist < 100:
+                source_data = self.patch_data(source_patch, self.image)
+                new_distance = self.calculate_distance(target_data, source_data, local_mask)
 
-                if self.is_fully_in_mask(source_patch):
-                    source_data = self.patch_data(source_patch, self.image)
-                    masked_source = self.mask_data(source_data, local_mask)
-                    new_distance = self.calculate_distance(target_patch, source_patch, masked_target, masked_source)
+                if new_distance < distance:
+                    distance = new_distance
+                    best_pixel = pixel
+                    best_location = source_patch
+                    best_match = source_data
 
-                    if new_distance < distance:
-                        distance = new_distance
-                        best_pixel = pixel
-                        best_location = source_patch
-                        best_match = source_data
-
-        best_source = self.mask_data(best_match, 255 - local_mask)
-        print('source pixel : '+str(best_pixel))
+        print('source pixel : ' + str(best_pixel))
         print('distance : ' + str(distance))
-
         # self.show_patch(self.image, best_location, 'source patch')
-        # self.show_image(best_source, 'data')
-        # self.show_image(masked_target, 'target data')
+        return best_match
 
-        return best_source
+    def update_image(self, patch, target_data, source_data, local_mask):
+        [minX, maxX], [minY, maxY] = patch
+        new_data = self.create_new_data(target_data, source_data, local_mask)
 
-    def update_image(self, location, new_data, new_confidence):
-        [minX, maxX], [minY, maxY] = location
-
-        # self.show_image(new_data, 'new data')
-        self.confidence[minX:maxX, minY:maxY] = new_confidence
         self.image[minX:maxX, minY:maxY] = new_data
         self.mask[minX:maxX, minY:maxY] = 0
-
-        self.iteration += 1
-        self.save_temp_image()
         # self.show_image(self.image, 'updated image')
 
+        self.iteration += 1
+
     def change_local_conf(self, pixel, patch, mask):
-        data = self.patch_data(patch, self.confidence)
-        masked_data = self.mask_data(data, mask)
-        new = np.ones((self.patch_size-1, self.patch_size-1))*self.confidence[pixel[0], pixel[1]]
-        masked_new = self.mask_data(new, 255 - mask)
-        return masked_data + masked_new
+        [minX, maxX], [minY, maxY] = patch
+        old_conf = self.patch_data(patch, self.confidence)
+        new_conf = np.zeros_like(old_conf)
+
+        new_conf[mask == 0] = old_conf[mask == 0]
+        new_conf[mask == 1] = self.confidence[pixel[0], pixel[1]]
+
+        self.confidence[minX:maxX, minY:maxY] = new_conf
 
     def is_finished(self):
         white_number = self.mask.sum()
         self.safetyCount += 1
+
         if white_number == 0 or (self.safetyCount > self.safetyMax):
-            self.save_temp_image(True)
+            print('total process time : ' + self.get_chrono())
+            self.save_temp_image()
+
             return True
         else:
-            prediction = round(white_number/(255*self.patch_size*self.patch_size)*5.35)
-            print('remains approximately '
-                  + str(prediction)
-                  + ' iterations')
+            prediction = round(white_number/(self.patch_size * self.patch_size)*3.92)
+            print('remains approximately ' + str(prediction) + ' iterations')
+            print('process time : ' + self.get_chrono())
 
-            print('process time : ' + str(round(time.perf_counter() - self.start_time)) + ' seconds'+'\n')
+            if self.iteration % 5 == 0:
+                self.save_temp_image()
+
             return False
 
-    def mask_input(self):
-        mask_pos = np.argwhere(self.mask > 128)
+    def delimit_source_region(self):
+        print('\ndelimiting source region...')
+        height, width = self.mask.shape
+        size = (self.patch_size - 1) // 2
+        structured_elem_1 = np.ones((self.patch_size, self.patch_size))
+        structured_elem_2 = np.ones((self.patch_size * 5, self.patch_size * 5))
+        dilated_mask_1 = np.zeros_like(self.mask)
+        dilated_mask_2 = np.zeros_like(self.mask)
 
-        # color inside the mask area of the input in white
-        for p in mask_pos:
-            self.image[p[0], p[1]] = 255
+        for i in range(height):
+            for j in range(width):
+                dilated_mask_1[i, j] = self.pixel_dilatation(self.mask, i, j, structured_elem_1)
+                dilated_mask_2[i, j] = self.pixel_dilatation(self.mask, i, j, structured_elem_2)
 
-        # color the outlines in red
-        '''self.identify_fill_front()
-        front_pos = np.argwhere(self.fill_front == 1)
+        source_mask = dilated_mask_2 - dilated_mask_1
+        source_mask[:size, :] = 0
+        source_mask[:, :size] = 0
+        source_mask[height - size:height, :] = 0
+        source_mask[:, width - size:width] = 0
 
-        for p in front_pos:
-            self.image[p[0], p[1]] = (255, 0, 0)'''
+        source_region = np.copy(self.image)
+        source_region[source_mask == 0] = 0
+        source_region[self.mask == 1] = 255
+        print("time to delimit the source region : " + self.get_chrono())
+        self.show_image(source_region, 'source region')
+        return np.argwhere(source_mask == 1)
 
-    def save_temp_image(self, force=False):
-        if self.iteration % 5 == 0 or force:
-            imo.imwrite('../Data/Temp/'+str(self.iteration)+'.png', self.image)
+    def get_chrono(self):
+        return str(round(time.perf_counter() - self.start_time)) + ' seconds\n'
+
+    def save_temp_image(self):
+        # save the result of the last iteration
+        imo.imwrite('../Data/Temp/' + str(self.iteration) + '.jpg', self.image)
 
     def patch_indices(self, pixel):
         # returns the indices (min and max) of the patch centered around the given pixel
-
         half_size = (self.patch_size - 1) // 2
         height, width = self.image.shape[:2]
 
@@ -216,48 +223,55 @@ class Inpainter:
         min_y = max(0, pixel[1] - half_size)
         max_y = min(pixel[1] + half_size, width - 1)
 
-        return [min_x, max_x], [min_y, max_y]
+        return [min_x, max_x + 1], [min_y, max_y + 1]
+
+    @staticmethod
+    def pixel_dilatation(image, line, column, structured_elem):
+        width = structured_elem.shape[0] // 2
+        height = structured_elem.shape[1] // 2
+        pixel_value = False
+
+        for i in range(0, structured_elem.shape[0]):
+            for j in range(0, structured_elem.shape[1]):
+                x_image = line + i - width
+                y_image = column + j - height
+                if (x_image >= 0) and (x_image < image.shape[0]) and (y_image >= 0) and (y_image < image.shape[1]):
+                    if image[x_image, y_image] and structured_elem[i, j]:
+                        pixel_value = True
+
+        return pixel_value
 
     @staticmethod
     def patch_data(indices, source):
         # returns the pixel values of the given indices in source
-
         [minX, maxX], [minY, maxY] = indices
         return source[minX:maxX, minY:maxY]
 
     @staticmethod
-    def calculate_distance(target_patch, source_patch, target_data, source_data):
-        # returns the squared distance between the given target and source patches
-
-        [minXT, maxXT], [minYT, maxYT] = target_patch
-        [minXS, maxXS], [minYS, maxYS] = source_patch
-
-        euclidian_dist = np.sqrt((minXT - minXS)**2 + (minYT - minYS)**2)
-        squared_dist = ((target_data-source_data)**2).sum()
-
-        return squared_dist/7 + euclidian_dist
+    def calculate_distance(target_data, source_data, mask):
+        # returns the squared distance between pixels of given target and source
+        diff = np.zeros_like(target_data)
+        diff[mask == 0] = (source_data[mask == 0] - target_data[mask == 0]) ** 2
+        return diff.sum()
 
     @staticmethod
-    def mask_data(source, mask, threshold=128):
-        # returns the source masked with the given mask [ source * mask ]
-
-        final_patch = np.copy(source)
-        height, width = final_patch.shape[:2]
-
-        for i in range(height):
-            for j in range(width):
-                if mask[i, j] > threshold:
-                    final_patch[i][j] = 0
-        return final_patch
+    def create_new_data(target_data, source_data, local_mask):
+        # returns a patch composed of already known target pixels and new pixels from source patch
+        new_data = np.zeros_like(target_data)
+        new_data[local_mask == 0] = target_data[local_mask == 0]
+        new_data[local_mask == 1] = source_data[local_mask == 1]
+        return new_data
 
     @staticmethod
     def show_image(image, title):
+        # method to display an image with a title
         plt.imshow(image, cmap='gray')
         plt.title(title)
         plt.show()
 
     @staticmethod
     def show_patch(source, indices, title):
+        # method to display the location of the patch on the given source
         [minX, maxX], [minY, maxY] = indices
         image = np.copy(source)
 
@@ -269,7 +283,3 @@ class Inpainter:
         plt.imshow(image)
         plt.title(title)
         plt.show()
-
-
-
-
