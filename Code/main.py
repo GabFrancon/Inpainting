@@ -23,14 +23,14 @@ def main():
 
     # prepare image and mask
     mask = format_mask(mask)
-    image[mask == 1] = 255
+    image = format_image(image, mask)
 
     # show_image(image, 'starter image')
     # show_image(mask, 'starter mask')
 
     output_image = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
-    create_gif()
+    # create_gif()
     show_image(output_image, 'result')
 
 
@@ -40,21 +40,21 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Flower.jpg'
+        default='../Data/Island.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Flower_mask.jpg'
+        default='../Data/Mask/Island_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Flower_output_2.jpg'
+        default='../Data/Island_output_2.jpg'
     )
 
     return parser.parse_args()
@@ -62,9 +62,17 @@ def parse_arguments():
 
 def format_mask(mask):
 
-    gray = np.dot(mask[..., :3], [0.299, 0.587, 0.114])
-    result = np.asarray(gray, dtype='uint8')
-    return (result > 128).astype('float')
+    mask = np.dot(mask[..., :3], [0.299, 0.587, 0.114])
+    mask = np.asarray(mask, dtype='uint8')
+    mask = (mask > 128).astype('float')
+    return mask
+
+
+def format_image(image, mask):
+    if image.ndim < 3:
+        image = image.reshape(image.shape[0], image.shape[1], 1).repeat(3, axis=2)
+    image[mask == 1] = 255
+    return image
 
 
 def clear_temp_directory():
@@ -75,7 +83,7 @@ def clear_temp_directory():
 
 def create_gif():
     directory = '../Data/Temp'
-    with imo.get_writer('../Data/Process/Flower_process_2.gif', mode='I') as writer:
+    with imo.get_writer('../Data/Process/process.gif', mode='I') as writer:
         for file in os.listdir(directory):
             image = imo.imread(os.path.join(directory, file))
             writer.append_data(image)
