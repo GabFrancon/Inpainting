@@ -40,21 +40,21 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Island.jpg'
+        default='../Data/Flower.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Island_mask.jpg'
+        default='../Data/Flower_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Island_output_5.jpg'
+        default='../Data/Flower_output_2.jpg'
     )
 
     return parser.parse_args()
@@ -75,7 +75,7 @@ def clear_temp_directory():
 
 def create_gif():
     directory = '../Data/Temp'
-    with imo.get_writer('../Data/Process/process.gif', mode='I') as writer:
+    with imo.get_writer('../Data/Process/Flower_process_2.gif', mode='I') as writer:
         for file in os.listdir(directory):
             image = imo.imread(os.path.join(directory, file))
             writer.append_data(image)

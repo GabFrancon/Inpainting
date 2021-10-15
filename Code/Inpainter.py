@@ -88,12 +88,16 @@ class Inpainter:
         max_priority = -np.inf
         max_pixel = None
 
-        for pixel in edge:
-            if self.is_patchable(pixel):
-                priority = self.priority[pixel[0]][pixel[1]]
-                if priority > max_priority:
-                    max_priority = priority
-                    max_pixel = pixel
+        while max_pixel is None:
+            for pixel in edge:
+                if self.is_patchable(pixel):
+                    priority = self.priority[pixel[0]][pixel[1]]
+                    if priority > max_priority:
+                        max_priority = priority
+                        max_pixel = pixel
+            if max_pixel is None:
+                self.patch_size = self.patch_size // 2
+                print('\nmax pixel is None, new patch size = '+str(self.patch_size)+'\n')
 
         return max_pixel
 
@@ -184,7 +188,7 @@ class Inpainter:
         height, width = self.mask.shape
         size = (self.patch_size - 1) // 2
         structured_elem_1 = np.ones((self.patch_size, self.patch_size))
-        structured_elem_2 = np.ones((self.patch_size * 5, self.patch_size * 5))
+        structured_elem_2 = np.ones((self.patch_size * 4, self.patch_size * 4))
         dilated_mask_1 = np.zeros_like(self.mask)
         dilated_mask_2 = np.zeros_like(self.mask)
 
