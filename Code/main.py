@@ -10,7 +10,7 @@ from Inpainter import Inpainter
 def main():
     """ Usage in inpainting directory :
 
-        python Code/main.py -i Data/Image.png -m Data/Mask.png -o Data/Output.png
+        python Code/main.py -i Data/Image.jpg -m Data/Mask.jpg -o Data/Output.jpg
 
          To make a GIF from result, go to https://ezgif.com/maker and use images in '/Data/Temp' folder """
 
@@ -54,7 +54,7 @@ def parse_arguments():
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Island_output_2.jpg'
+        default='../Data/Island_output_CxD_2.jpg'
     )
 
     return parser.parse_args()
