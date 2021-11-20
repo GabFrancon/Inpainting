@@ -1,10 +1,10 @@
 import argparse as ap
 import numpy as np
 import os
-
 import imageio as imo
 import matplotlib.pyplot as plt
 from Inpainter import Inpainter
+from Corrector import Corrector
 
 
 def main():
@@ -28,10 +28,12 @@ def main():
     # show_image(image, 'starter image')
     # show_image(mask, 'starter mask')
 
-    output_image = Inpainter(image, mask).inpaint()
+    output_image, shift_map = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
-    # create_gif()
-    show_image(output_image, 'result')
+
+    final_image = Corrector(output_image, mask, shift_map).correct()
+    imo.imwrite('../Data/Panel_output_final.jpg', final_image)
+    show_image(final_image, 'final image')
 
 
 def parse_arguments():
@@ -40,28 +42,27 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Island.jpg'
+        default='../Data/Panel_output_CxD.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Mask/Island_mask.jpg'
+        default='../Data/Mask/Panel_mask_2.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Island_output_CxD_2.jpg'
+        default='../Data/Panel_output_CxD_2.jpg'
     )
 
     return parser.parse_args()
 
 
 def format_mask(mask):
-
     mask = np.dot(mask[..., :3], [0.299, 0.587, 0.114])
     mask = np.asarray(mask, dtype='uint8')
     mask = (mask > 128).astype('float')
@@ -76,17 +77,12 @@ def format_image(image, mask):
 
 
 def clear_temp_directory():
-    directory = '../Data/Temp'
-    for file in os.listdir(directory):
-        os.remove(os.path.join(directory, file))
-
-
-def create_gif():
-    directory = '../Data/Temp'
-    with imo.get_writer('../Data/Process/process.gif', mode='I') as writer:
-        for file in os.listdir(directory):
-            image = imo.imread(os.path.join(directory, file))
-            writer.append_data(image)
+    directory1 = '../Data/Temp'
+    for file in os.listdir(directory1):
+        os.remove(os.path.join(directory1, file))
+    directory2 = '../Data/Temp_corr'
+    for file in os.listdir(directory2):
+        os.remove(os.path.join(directory2, file))
 
 
 def show_image(image, title):
