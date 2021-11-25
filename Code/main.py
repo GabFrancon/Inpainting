@@ -25,14 +25,11 @@ def main():
     mask = format_mask(mask)
     image = format_image(image, mask)
 
-    # show_image(image, 'starter image')
-    # show_image(mask, 'starter mask')
-
     output_image, shift_map = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
 
     final_image = Corrector(output_image, mask, shift_map).correct()
-    imo.imwrite('../Data/Panel_output_final.jpg', final_image)
+    imo.imwrite('../Data/Old_output_final.jpg', final_image)
     show_image(final_image, 'final image')
 
 
@@ -42,21 +39,21 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Panel_output_CxD.jpg'
+        default='../Data/Square.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Mask/Panel_mask_2.jpg'
+        default='../Data/Mask/Square_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Panel_output_CxD_2.jpg'
+        default='../Data/Square_output.jpg'
     )
 
     return parser.parse_args()

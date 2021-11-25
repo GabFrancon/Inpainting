@@ -1,8 +1,6 @@
-import time
-import sys
-import numpy as np
 import imageio as imo
 from skimage.color import rgb2hsv, rgb2gray
+from utils import *
 
 
 class Corrector:
@@ -24,7 +22,7 @@ class Corrector:
 
     def correct(self):
         print('\n\ncorrection of previous inpainting...')
-        self.print_progress(0, self.k_max)
+        print_progress(0, self.k_max)
         self.save_temp_image('0')
         start_time = time.perf_counter()
         self.initialize_attribute()
@@ -33,17 +31,17 @@ class Corrector:
         while e > 0.1 and k < self.k_max:
             img = np.copy(self.image).astype('uint8')
             self.ann_search()
-            self.print_progress(k + 0.33, self.k_max)
+            print_progress(k + 0.33, self.k_max)
             self.image = self.reconstruction(self.image)
-            self.print_progress(k + 0.66, self.k_max)
+            print_progress(k + 0.66, self.k_max)
             self.texture = self.reconstruction(self.texture)
-            self.print_progress(k + 1, self.k_max)
+            print_progress(k + 1, self.k_max)
 
             e = np.linalg.norm(img - self.image) / (3 * np.sum(self.real_mask))
             k += 1
             self.save_temp_image(str(k))
 
-        print('\ntotal process time : ' + self.get_chrono(start_time))
+        print('\ntotal process time : ' + get_chrono(start_time))
         print('total iteration    : ' + str(k)+'\n')
 
         return self.image
@@ -107,7 +105,7 @@ class Corrector:
         h, w = self.mask.shape
         for p in hole:
             patch = self.patch_indices(p)
-            val = np.zeros_like(self.patch_data(patch, img))
+            val = np.zeros_like(patch_data(patch, img))
             count = 0
             for x in range(val.shape[0]):
                 for y in range(val.shape[1]):
@@ -133,14 +131,8 @@ class Corrector:
 
         return [min_x, max_x + 1], [min_y, max_y + 1]
 
-    @staticmethod
-    def patch_data(indices, source):
-        # returns the pixel values of the given indices in source
-        [minX, maxX], [minY, maxY] = indices
-        return source[minX:maxX, minY:maxY]
-
     def get_local_mask(self, indices):
-        return self.patch_data(indices, np.copy(self.real_mask))
+        return patch_data(indices, np.copy(self.real_mask))
 
     def save_temp_image(self, name):
         # saves the result of the last iteration
@@ -149,10 +141,10 @@ class Corrector:
     def calculate_distance(self, target, source):
         target_patch = self.patch_indices(target)
         source_patch = self.patch_indices(source)
-        target_color = rgb2hsv(self.patch_data(target_patch, self.image))
-        source_color = rgb2hsv(self.patch_data(source_patch, self.image))
-        target_texture = self.patch_data(target_patch, self.texture)
-        source_texture = self.patch_data(source_patch, self.texture)
+        target_color = rgb2hsv(patch_data(target_patch, self.image))
+        source_color = rgb2hsv(patch_data(source_patch, self.image))
+        target_texture = patch_data(target_patch, self.texture)
+        source_texture = patch_data(source_patch, self.texture)
 
         color_dist = (source_color - target_color) ** 2
         texture_dist = (source_texture - target_texture) ** 2
@@ -172,7 +164,7 @@ class Corrector:
 
     def average_patch(self, pixel, source):
         patch = self.patch_indices(pixel)
-        data = self.patch_data(patch, source)
+        data = patch_data(patch, source)
         return sum(sum(data)) / (self.patch_size * self.patch_size)
 
     def shift(self, p):
@@ -183,34 +175,6 @@ class Corrector:
         half = self.patch_size // 2
         bool1 = (half < p[0] < h-half) and (half < p[1] < w-half)
         patch = self.patch_indices(p)
-        data = self.patch_data(patch, self.real_mask)
+        data = patch_data(patch, self.real_mask)
         bool2 = (data.sum() == 0)
         return bool1 and bool2
-
-    @staticmethod
-    def get_chrono(start_time):
-        # returns the time since the process started
-        return str(round(time.perf_counter() - start_time)) + ' seconds'
-
-    @staticmethod
-    def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_length=60):
-        # Displays a terminal progress bar
-        """
-        @params:
-            iteration   - Required  : current iteration (Int)
-            total       - Required  : total iterations (Int)
-            prefix      - Optional  : prefix string (Str)
-            suffix      - Optional  : suffix string (Str)
-            decimals    - Optional  : positive number of decimals in percent complete (Int)
-            bar_length  - Optional  : character length of bar (Int)
-        """
-        str_format = "{0:." + str(decimals) + "f}"
-        percents = str_format.format(100 * (iteration / float(total)))
-        filled_length = int(round(bar_length * iteration / float(total)))
-        bar = '█' * filled_length + '-' * (bar_length - filled_length)
-
-        sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percents, '%', suffix)),
-
-        if iteration == total:
-            sys.stdout.write('\n')
-        sys.stdout.flush()
