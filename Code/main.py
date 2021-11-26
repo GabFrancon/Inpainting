@@ -27,10 +27,11 @@ def main():
 
     output_image, shift_map = Inpainter(image, mask).inpaint()
     imo.imwrite(output_filepath, output_image)
+    show_image(output_image, 'output image')
 
-    final_image = Corrector(output_image, mask, shift_map).correct()
-    imo.imwrite('../Data/Old_output_final.jpg', final_image)
-    show_image(final_image, 'final image')
+    """final_image = Corrector(output_image, mask, shift_map).correct()
+    imo.imwrite('../Data/Flower_output_final.jpg', final_image)
+    show_image(final_image, 'final image')"""
 
 
 def parse_arguments():
@@ -39,21 +40,21 @@ def parse_arguments():
         '-i',
         '--input',
         help='the filepath to the image containing object to be edited',
-        default='../Data/Square.jpg'
+        default='../Data/Baseball.jpg'
     )
 
     parser.add_argument(
         '-m',
         '--mask',
         help='the mask of the region to be removed',
-        default='../Data/Mask/Square_mask.jpg'
+        default='../Data/Mask/Baseball_mask.jpg'
     )
 
     parser.add_argument(
         '-o',
         '--output',
         help='the filepath to save the output image',
-        default='../Data/Square_output.jpg'
+        default='../Data/Baseball_output_1.jpg'
     )
 
     return parser.parse_args()
