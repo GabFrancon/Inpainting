@@ -1,7 +1,9 @@
-# inpainting
+# Inpainting
 This in an implementation of the article [Region Filling and Object Removal by Exemplar-Based Image Inpainting](https://www.irisa.fr/vista/Papers/2004_ip_criminisi.pdf) as part of the *Image inpainting project* for IMA201 (Télécom Paris).
 
 <br/>
+
+***
 
 ### Running the program
 Place yourself in the "inpainting" directory, then execute :
